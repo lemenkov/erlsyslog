@@ -61,7 +61,7 @@ handle_call(Message, From, {Fd, Host, Port}) ->
 	{noreply, {Fd, Host, Port}}.
 
 handle_cast({syslog, Who, Facility, Level, Message}, {Fd, Host, Port}) ->
-	syslog(Fd, Host, Port, erlsyslog, ?LOG_CRITICAL, ?FAC_USER, io_lib:format ("Message [~p] from [~p] Facility [~p] at Level [~p]", [Message, Who, Facility, Level])),
+%	syslog(Fd, Host, Port, erlsyslog, ?LOG_CRITICAL, ?FAC_USER, io_lib:format ("Message [~p] from [~p] Facility [~p] at Level [~p]", [Message, Who, Facility, Level])),
 	syslog(Fd, Host, Port, Who, Facility, Level, Message),
 	{noreply, {Fd, Host, Port}};
 
@@ -78,7 +78,7 @@ code_change(_OldVsn, {Fd, Host, Port}, _Extra) ->
 	{ok, {Fd, Host, Port}}.
 
 terminate(Reason, {Fd, Host, Port}) ->
-	syslog(Fd, Host, Port, erlsyslog, erlsyslog:?LOG_CRITICAL, erlsyslog:?FAC_USER, io_lib:format ("terminated due to reason [~w]", [Reason])),
+	syslog(Fd, Host, Port, erlsyslog, ?LOG_CRITICAL, ?FAC_USER, io_lib:format ("terminated due to reason [~w]", [Reason])),
 	gen_udp:close(Fd).
 
 syslog(Fd, Host, Port, Who, Facility, Level, Message, Args) ->
