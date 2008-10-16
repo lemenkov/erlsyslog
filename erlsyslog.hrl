@@ -23,7 +23,12 @@
 -define(FAC_AUTHPRIV,   (10 bsl 3)). % security/authorization messages (private)
 -define(FAC_FTP,        (11 bsl 3)). % ftp daemon
 
-% other codes through 15 reserved for system use
+% these codes (from 12 through 15) are reserved for system use
+%-define(FAC_NTP, 	(12 bsl 3)).
+%-define(FAC_LOG_ALERT,	(13 bsl 3)).
+%-define(FAC_LOG_AUDIT,	(14 bsl 3)).
+%-define(FAC_CLOCK,	(15 bsl 3)).
+
 -define(FAC_LOCAL0,     (16 bsl 3)). % reserved for local use
 -define(FAC_LOCAL1,     (17 bsl 3)). % reserved for local use
 -define(FAC_LOCAL2,     (18 bsl 3)). % reserved for local use
