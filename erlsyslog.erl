@@ -30,6 +30,8 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
+-export([test/0]).
+
 -include ("erlsyslog.hrl").
 
 %	{ok, Host} = inet:gethostname(),
@@ -72,4 +74,5 @@ terminate(Reason, {Fd, Host, Port}) ->
 syslog(Fd, Host, Port, Who, Facility, Level, Message) ->
 	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ atom_to_list(Who) ++ ": " ++ Message ++ "\n",
 	gen_udp:send(Fd, Host, Port, Packet).
-
+test() ->
+	io:format("Done!~n").
