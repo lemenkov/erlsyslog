@@ -38,41 +38,73 @@
 init ({Port, SyslogHost, SyslogPort}) ->
 	case gen_udp:open(Port) of
 		{ok, Fd} ->
-			syslog(Fd, SyslogHost, SyslogPort, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("started", [])),
+			syslog({Fd, SyslogHost, SyslogPort}, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("started", [])),
 			{ok, {Fd, SyslogHost, SyslogPort}};
 		{error, Reason} ->
 			{stop, Reason}
 	end.
 
-handle_call(Request, {Fd, Host, Port}) ->
-	{ok, {Fd, Host, Port}}.
+handle_call(_Request, State) ->
+	{ok, ok, State}.
 
-handle_info(Info, {Fd, Host, Port}) ->
-	syslog(Fd, Host, Port, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("Info [~p]", [Info])),
-	{ok, {Fd, Host, Port}}.
+handle_info(Info, Connection) ->
+	syslog(Connection, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("Info [~p]", [Info])),
+	{ok, Connection}.
 
-handle_event({error, SelfPid, {FromPid, Fmt, [Name|Data]}}, {Fd, Host, Port}) ->
-	syslog(Fd, Host, Port, Name, ?LOG_ERROR, ?FAC_USER, io_lib:format ("~p: " ++ Fmt, [FromPid] ++  Data)),
-	{ok, {Fd, Host, Port}};
+handle_event({error, _, {FromPid, Fmt, Data}}, Connection) ->
+	syslog(Connection, FromPid, ?LOG_ERROR, ?FAC_USER, io_lib:format (Fmt, Data)),
+	{ok, Connection};
 
-handle_event({info_msg, SelfPid, {FromPid, Fmt, [Name|Data]}}, {Fd, Host, Port}) ->
-	syslog(Fd, Host, Port, Name, ?LOG_INFO, ?FAC_USER, io_lib:format ("~p: " ++ Fmt, [FromPid] ++  Data)),
-	{ok, {Fd, Host, Port}};
+handle_event({warning_msg, _, {FromPid, Fmt, Data}}, Connection) ->
+	syslog(Connection, FromPid, ?LOG_WARNING, ?FAC_USER, io_lib:format (Fmt, Data)),
+	{ok, Connection};
 
-handle_event(Event, {Fd, Host, Port}) ->
-	syslog(Fd, Host, Port, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("Info [~p]", [Event])),
-	{ok, {Fd, Host, Port}}.
+handle_event({info_msg, _, {FromPid, Fmt, Data}}, Connection) ->
+	syslog(Connection, FromPid, ?LOG_INFO, ?FAC_USER, io_lib:format (Fmt, Data)),
+	{ok, Connection};
 
-code_change(_OldVsn, {Fd, Host, Port}, _Extra) ->
-%	syslog(Fd, Host, Port, erlsyslog, ?LOG_CRITICAL, ?FAC_USER, "Code change"),
-	{ok, {Fd, Host, Port}}.
+handle_event({error_report, _, {FromPid, std_error, Report}}, Connection) when is_record(Report, report) ->
+	syslog(Connection, Report#report.name, ?LOG_ERROR, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid] ++ Report#report.data)),
+	{ok, Connection};
+
+handle_event({error_report, _, {FromPid, std_error, Report}}, Connection) ->
+	syslog(Connection, FromPid, ?LOG_ERROR, ?FAC_USER, io_lib:format ("~p", [Report])),
+	{ok, Connection};
+
+handle_event({warning_report, _, {FromPid, std_warning, Report}}, Connection) when is_record(Report, report) ->
+	syslog(Connection, Report#report.name, ?LOG_WARNING, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid] ++ Report#report.data)),
+	{ok, Connection};
+
+handle_event({warning_report, _, {FromPid, std_warning, Report}}, Connection) ->
+	syslog(Connection, FromPid, ?LOG_WARNING, ?FAC_USER, io_lib:format ("~p", [Report])),
+	{ok, Connection};
+
+handle_event({info_report, _, {FromPid, std_info, Report}}, Connection) when is_record(Report, report) ->
+	syslog(Connection, Report#report.name, ?LOG_INFO, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid] ++ Report#report.data)),
+	{ok, Connection};
+
+handle_event({info_report, _, {FromPid, std_info, Report}}, Connection) ->
+	syslog(Connection, FromPid, ?LOG_INFO, ?FAC_USER, io_lib:format ("~p", [Report])),
+	{ok, Connection};
+
+handle_event(Event, Connection) ->
+	syslog(Connection, erlsyslog, ?LOG_WARNING, ?FAC_USER, io_lib:format ("Unknown event [~p]", [Event])),
+	{ok, Connection}.
+
+code_change(_OldVsn, State, _Extra) ->
+	{ok, State}.
 
 terminate(Reason, {Fd, Host, Port}) ->
-	syslog(Fd, Host, Port, erlsyslog, ?LOG_CRITICAL, ?FAC_USER, io_lib:format ("terminated due to reason [~w]", [Reason])),
+	syslog({Fd, Host, Port}, erlsyslog, ?LOG_CRITICAL, ?FAC_USER, io_lib:format ("terminated due to reason [~w]", [Reason])),
 	gen_udp:close(Fd).
 
-syslog(Fd, Host, Port, Who, Facility, Level, Message) ->
+syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_atom(Who) ->
 	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ atom_to_list(Who) ++ ": " ++ Message ++ "\n",
+	gen_udp:send(Fd, Host, Port, Packet);
+
+syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_pid(Who) ->
+	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ pid_to_list(Who) ++ ": " ++ Message ++ "\n",
 	gen_udp:send(Fd, Host, Port, Packet).
+
 test() ->
 	io:format("Done!~n").

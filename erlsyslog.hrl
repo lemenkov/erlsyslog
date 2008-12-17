@@ -1,5 +1,4 @@
 %% Specify levels.
-
 -define(LOG_EMERGENCY, 0). % system is unusable
 -define(LOG_ALERT,     1). % action must be taken immediately
 -define(LOG_CRITICAL,  2). % critical conditions
@@ -37,4 +36,6 @@
 -define(FAC_LOCAL5,     (21 bsl 3)). % reserved for local use
 -define(FAC_LOCAL6,     (22 bsl 3)). % reserved for local use
 -define(FAC_LOCAL7,     (23 bsl 3)). % reserved for local use
+
+-record(report, {name, facility=?FAC_USER, format, data}).
 
