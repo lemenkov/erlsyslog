@@ -9,4 +9,3 @@
 		{applications,[kernel,stdlib]}
 	]
 }.
-
