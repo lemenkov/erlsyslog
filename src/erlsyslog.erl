@@ -32,7 +32,7 @@
 
 -export([test/0]).
 
--include ("erlsyslog.hrl").
+-include ("../include/erlsyslog.hrl").
 
 %	{ok, Host} = inet:gethostname(),
 init ({Port, SyslogHost, SyslogPort}) ->
