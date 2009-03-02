@@ -23,7 +23,7 @@
 -define(FAC_FTP,        (11 bsl 3)). % ftp daemon
 
 % these codes (from 12 through 15) are reserved for system use
-%-define(FAC_NTP, 	(12 bsl 3)).
+%-define(FAC_NTP,	(12 bsl 3)).
 %-define(FAC_LOG_ALERT,	(13 bsl 3)).
 %-define(FAC_LOG_AUDIT,	(14 bsl 3)).
 %-define(FAC_CLOCK,	(15 bsl 3)).
@@ -38,4 +38,8 @@
 -define(FAC_LOCAL7,     (23 bsl 3)). % reserved for local use
 
 -record(report, {name, facility=?FAC_USER, format, data}).
+
+-define(ERR(X,Y), error_logger:error_report(#report{name=?MODULE, format=X, data=Y})).
+-define(WARN(X,Y), error_logger:warning_report(#report{name=?MODULE, format=X, data=Y})).
+-define(INFO(X,Y), error_logger:info_report(#report{name=?MODULE, format=X, data=Y})).
 
