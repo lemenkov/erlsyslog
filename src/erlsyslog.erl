@@ -51,40 +51,31 @@ handle_info(Info, Connection) ->
 	syslog(Connection, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("Info [~p]", [Info])),
 	{ok, Connection}.
 
-handle_event({error, _, {FromPid, Fmt, Data}}, Connection) ->
-	syslog(Connection, FromPid, ?LOG_ERROR, ?FAC_USER, io_lib:format (Fmt, Data)),
+handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_record(Report, report), is_atom(StdType) ->
+	RL = case {ReportLevel,StdType} of
+		{error_report, std_error} -> ?LOG_ERROR;
+		{warning_report, std_warning} -> ?LOG_WARNING;
+		{info_report, std_info} -> ?LOG_INFO
+	end,
+	syslog(Connection, Report#report.name, RL, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid|Report#report.data])),
 	{ok, Connection};
 
-handle_event({warning_msg, _, {FromPid, Fmt, Data}}, Connection) ->
-	syslog(Connection, FromPid, ?LOG_WARNING, ?FAC_USER, io_lib:format (Fmt, Data)),
+handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_atom(StdType) ->
+	RL = case {ReportLevel,StdType} of
+		{error_report, std_error} -> ?LOG_ERROR;
+		{warning_report, std_warning} -> ?LOG_WARNING;
+		{info_report, std_info} -> ?LOG_INFO
+	end,
+	syslog(Connection, FromPid, RL, ?FAC_USER, io_lib:format ("~p", [Report])),
 	{ok, Connection};
 
-handle_event({info_msg, _, {FromPid, Fmt, Data}}, Connection) ->
-	syslog(Connection, FromPid, ?LOG_INFO, ?FAC_USER, io_lib:format (Fmt, Data)),
-	{ok, Connection};
-
-handle_event({error_report, _, {FromPid, std_error, Report}}, Connection) when is_record(Report, report) ->
-	syslog(Connection, Report#report.name, ?LOG_ERROR, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid] ++ Report#report.data)),
-	{ok, Connection};
-
-handle_event({error_report, _, {FromPid, std_error, Report}}, Connection) ->
-	syslog(Connection, FromPid, ?LOG_ERROR, ?FAC_USER, io_lib:format ("~p", [Report])),
-	{ok, Connection};
-
-handle_event({warning_report, _, {FromPid, std_warning, Report}}, Connection) when is_record(Report, report) ->
-	syslog(Connection, Report#report.name, ?LOG_WARNING, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid] ++ Report#report.data)),
-	{ok, Connection};
-
-handle_event({warning_report, _, {FromPid, std_warning, Report}}, Connection) ->
-	syslog(Connection, FromPid, ?LOG_WARNING, ?FAC_USER, io_lib:format ("~p", [Report])),
-	{ok, Connection};
-
-handle_event({info_report, _, {FromPid, std_info, Report}}, Connection) when is_record(Report, report) ->
-	syslog(Connection, Report#report.name, ?LOG_INFO, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid] ++ Report#report.data)),
-	{ok, Connection};
-
-handle_event({info_report, _, {FromPid, std_info, Report}}, Connection) ->
-	syslog(Connection, FromPid, ?LOG_INFO, ?FAC_USER, io_lib:format ("~p", [Report])),
+handle_event({EventLevel, _, {FromPid, Fmt, Data}}, Connection) ->
+	EL = case EventLevel of
+		error -> ?LOG_ERROR;
+		warning_msg -> ?LOG_WARNING;
+		info_msg -> ?LOG_INFO
+	end,
+	syslog(Connection, FromPid, EL, ?FAC_USER, io_lib:format (Fmt, Data)),
 	{ok, Connection};
 
 handle_event(Event, Connection) ->
@@ -99,12 +90,14 @@ terminate(Reason, {Fd, Host, Port}) ->
 	gen_udp:close(Fd).
 
 syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_atom(Who) ->
-	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ atom_to_list(Who) ++ ": " ++ Message ++ "\n",
-	gen_udp:send(Fd, Host, Port, Packet);
+	W = list_to_binary(atom_to_list(Who)),
+	M = list_to_binary(Message),
+	gen_udp:send(Fd, Host, Port, <<"<",  (Facility bor Level), "> ", W/binary, ": ", M/binary, "\n">>);
 
 syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_pid(Who) ->
-	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ pid_to_list(Who) ++ ": " ++ Message ++ "\n",
-	gen_udp:send(Fd, Host, Port, Packet).
+	W = list_to_binary(pid_to_list(Who)),
+	M = list_to_binary(Message),
+	gen_udp:send(Fd, Host, Port, <<"<",  (Facility bor Level), "> ", W/binary, ": ", M/binary, "\n">>).
 
 test() ->
 	io:format("Done!~n").
