@@ -89,20 +89,16 @@ terminate(Reason, {Fd, Host, Port}) ->
 	gen_udp:close(Fd).
 
 syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_atom(Who) ->
-%	W = list_to_binary(atom_to_list(Who)),
-%	M = list_to_binary(Message),
-%	P = Facility bor Level,
-%	Packet = <<"<", P/binary, "> ", W/binary, ": ", M/binary, "\n">>,
-	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ atom_to_list(Who) ++ ": " ++ Message ++ "\n",
-%	io:format(Packet),
-	gen_udp:send(Fd, Host, Port, Packet);
+	W = list_to_binary(atom_to_list(Who)),
+	M = list_to_binary(Message),
+	P = list_to_binary(integer_to_list(Facility bor Level)),
+	gen_udp:send(Fd, Host, Port, <<"<", P/binary, "> ", W/binary, ": ", M/binary, "\n">>);
 
 syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_pid(Who) ->
-%	W = list_to_binary(pid_to_list(Who)),
-%	M = list_to_binary(Message),
-%	gen_udp:send(Fd, Host, Port, <<"<", (Facility bor Level), "> ", W/binary, ": ", M/binary, "\n">>).
-	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ pid_to_list(Who) ++ ": " ++ Message ++ "\n",
-	gen_udp:send(Fd, Host, Port, Packet).
+	W = list_to_binary(pid_to_list(Who)),
+	M = list_to_binary(Message),
+	P = list_to_binary(integer_to_list(Facility bor Level)),
+	gen_udp:send(Fd, Host, Port, <<"<", P/binary, "> ", W/binary, ": ", M/binary, "\n">>).
 
 test() ->
 	io:format("Done!~n").
