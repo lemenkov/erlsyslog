@@ -34,11 +34,10 @@
 
 -include ("../include/erlsyslog.hrl").
 
-%	{ok, Host} = inet:gethostname(),
 init ({Port, SyslogHost, SyslogPort}) ->
 	case gen_udp:open(Port) of
 		{ok, Fd} ->
-			syslog({Fd, SyslogHost, SyslogPort}, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("started", [])),
+			syslog({Fd, SyslogHost, SyslogPort}, erlsyslog, ?LOG_INFO, ?FAC_USER, "started"),
 			{ok, {Fd, SyslogHost, SyslogPort}};
 		{error, Reason} ->
 			{stop, Reason}
@@ -64,7 +63,7 @@ handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_a
 	RL = case {ReportLevel,StdType} of
 		{error_report, std_error} -> ?LOG_ERROR;
 		{warning_report, std_warning} -> ?LOG_WARNING;
-		{info_report, std_info} -> ?LOG_INFO
+		{info_report, _} -> ?LOG_INFO
 	end,
 	syslog(Connection, FromPid, RL, ?FAC_USER, io_lib:format ("~p", [Report])),
 	{ok, Connection};
@@ -90,14 +89,20 @@ terminate(Reason, {Fd, Host, Port}) ->
 	gen_udp:close(Fd).
 
 syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_atom(Who) ->
-	W = list_to_binary(atom_to_list(Who)),
-	M = list_to_binary(Message),
-	gen_udp:send(Fd, Host, Port, <<"<",  (Facility bor Level), "> ", W/binary, ": ", M/binary, "\n">>);
+%	W = list_to_binary(atom_to_list(Who)),
+%	M = list_to_binary(Message),
+%	P = Facility bor Level,
+%	Packet = <<"<", P/binary, "> ", W/binary, ": ", M/binary, "\n">>,
+	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ atom_to_list(Who) ++ ": " ++ Message ++ "\n",
+%	io:format(Packet),
+	gen_udp:send(Fd, Host, Port, Packet);
 
 syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_pid(Who) ->
-	W = list_to_binary(pid_to_list(Who)),
-	M = list_to_binary(Message),
-	gen_udp:send(Fd, Host, Port, <<"<",  (Facility bor Level), "> ", W/binary, ": ", M/binary, "\n">>).
+%	W = list_to_binary(pid_to_list(Who)),
+%	M = list_to_binary(Message),
+%	gen_udp:send(Fd, Host, Port, <<"<", (Facility bor Level), "> ", W/binary, ": ", M/binary, "\n">>).
+	Packet = "<" ++ integer_to_list (Facility bor Level) ++ "> " ++ pid_to_list(Who) ++ ": " ++ Message ++ "\n",
+	gen_udp:send(Fd, Host, Port, Packet).
 
 test() ->
 	io:format("Done!~n").

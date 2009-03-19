@@ -1,6 +1,6 @@
 -module(test).
 
--include("erlsyslog.hrl").
+-include ("../include/erlsyslog.hrl").
 
 -behaviour(gen_server).
 -export([start/1]).
@@ -12,9 +12,9 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
--define(ERR(X,Y), error_logger:error_msg(X, Y)).
--define(INFO(X,Y), error_logger:info_msg(X, Y)).
--define(WARN(X,Y), error_logger:warning_msg(X, Y)).
+-define(ERR1(X,Y), error_logger:error_msg(X, Y)).
+-define(INFO1(X,Y), error_logger:info_msg(X, Y)).
+-define(WARN1(X,Y), error_logger:warning_msg(X, Y)).
 
 -define(ERR_REPORT(X,Y), error_logger:error_report(#report{name=?MODULE, format=X, data=Y})).
 -define(WARN_REPORT(X,Y), error_logger:warning_report(#report{name=?MODULE, format=X, data=Y})).
@@ -27,7 +27,7 @@ start_link(Args) ->
         gen_server:start_link(?MODULE, Args, []).
 
 init (Args) ->
-	error_logger:tty(false),
+%	error_logger:tty(false),
 	error_logger:add_report_handler(erlsyslog, {0, "localhost", 514}),
 	{ok, true}.
 
@@ -38,9 +38,9 @@ handle_call(Other, _From, State) ->
 
 handle_cast(Other, State) ->
 %        io:format("Cast [~p], State [~p]~n", [Other, State]),
-        Ret1 = ?INFO("IC [~p], State [~p]", [Other, State]),
-        Ret2 = ?WARN("WC [~p], State [~p]", [Other, State]),
-        Ret3 = ?ERR("EC [~p], State [~p]", [Other, State]),
+        Ret1 = ?INFO1("IC [~p], State [~p]", [Other, State]),
+        Ret2 = ?WARN1("WC [~p], State [~p]", [Other, State]),
+        Ret3 = ?ERR1("EC [~p], State [~p]", [Other, State]),
 	error_logger:error_report({error, "TEST"}),
 	error_logger:warning_report({warning, "TEST"}),
 	error_logger:info_report({info, "TEST"}),
