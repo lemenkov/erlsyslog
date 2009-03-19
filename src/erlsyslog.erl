@@ -62,6 +62,7 @@ handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_r
 handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_atom(StdType) ->
 	RL = case {ReportLevel,StdType} of
 		{error_report, std_error} -> ?LOG_ERROR;
+		{error_report, crash_report} -> ?LOG_ERROR;
 		{warning_report, std_warning} -> ?LOG_WARNING;
 		{info_report, _} -> ?LOG_INFO
 	end,
