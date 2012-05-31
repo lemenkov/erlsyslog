@@ -57,18 +57,17 @@ handle_info(Info, Connection) ->
 
 handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_record(Report, report), is_atom(StdType) ->
 	RL = case {ReportLevel,StdType} of
-		{error_report, std_error} -> ?LOG_ERROR;
-		{warning_report, std_warning} -> ?LOG_WARNING;
-		{info_report, std_info} -> ?LOG_INFO
+		{error_report, _} -> ?LOG_ERROR;
+		{warning_report, _} -> ?LOG_WARNING;
+		{info_report, _} -> ?LOG_INFO
 	end,
 	syslog(Connection, Report#report.name, RL, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid|Report#report.data])),
 	{ok, Connection};
 
 handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_atom(StdType) ->
 	RL = case {ReportLevel,StdType} of
-		{error_report, std_error} -> ?LOG_ERROR;
-		{error_report, crash_report} -> ?LOG_ERROR;
-		{warning_report, std_warning} -> ?LOG_WARNING;
+		{error_report, _} -> ?LOG_ERROR;
+		{warning_report, _} -> ?LOG_WARNING;
 		{info_report, _} -> ?LOG_INFO
 	end,
 	syslog(Connection, FromPid, RL, ?FAC_USER, io_lib:format ("~p", [Report])),
