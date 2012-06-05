@@ -46,7 +46,12 @@ init ({Port, SyslogHost, SyslogPort}) ->
 			{ok, {Fd, SyslogHost, SyslogPort}};
 		{error, Reason} ->
 			{stop, Reason}
-	end.
+	end;
+init (_) ->
+	% Required to read 'erlsyslog' entry from config-file
+	application:load(erlsyslog),
+	{ok, {SyslogHost, SyslogPort}} = application:get_env(erlsyslog, syslog_address),
+	init({0, SyslogHost, SyslogPort}).
 
 handle_call(_Request, State) ->
 	{ok, ok, State}.
