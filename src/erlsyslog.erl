@@ -35,77 +35,118 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
--export([test/0]).
+-define(DRV_NAME, "erlsyslog_drv").
+
+%% these constants must match those in syslog_drv.c
+-define(SYSLOGDRV_OPEN,  1).
+-define(SYSLOGDRV_CLOSE, 2).
 
 -include ("../include/erlsyslog.hrl").
 
-init ({Port, SyslogHost, SyslogPort}) ->
-	case gen_udp:open(Port) of
-		{ok, Fd} ->
-			syslog({Fd, SyslogHost, SyslogPort}, erlsyslog, ?LOG_INFO, ?FAC_USER, "started"),
-			{ok, {Fd, SyslogHost, SyslogPort}};
-		{error, Reason} ->
-			{stop, Reason}
-	end;
 init (_) ->
-	% Required to read 'erlsyslog' entry from config-file
-	application:load(erlsyslog),
-	{ok, {SyslogHost, SyslogPort}} = application:get_env(erlsyslog, syslog_address),
-	init({0, SyslogHost, SyslogPort}).
+	process_flag(trap_exit, true),
+	erl_ddll:start(),
+	PrivDir = case code:priv_dir(?MODULE) of
+		{error, bad_name} ->
+			EbinDir = filename:dirname(code:which(?MODULE)),
+			AppPath = filename:dirname(EbinDir),
+			filename:join(AppPath, "priv");
+		Path ->
+			Path
+	end,
+	LoadResult = case erl_ddll:load_driver(PrivDir, ?DRV_NAME) of
+		ok -> ok;
+		{error, already_loaded} -> ok;
+		{error, LoadError} ->
+			LoadErrorStr = erl_ddll:format_error(LoadError),
+			ErrStr = lists:flatten(io_lib:format("could not load driver ~s: ~p", [?DRV_NAME, LoadErrorStr])),
+		{stop, ErrStr}
+	end,
+	case LoadResult of
+		ok ->
+			Port = erlang:open_port({spawn, ?DRV_NAME}, [binary]),
+			Ref = make_ref(),
+			Args = term_to_binary({"erlsyslog", 1, 8, term_to_binary(Ref)}),
+			try erlang:port_control(Port, ?SYSLOGDRV_OPEN, Args) of
+				<<>> ->
+					receive
+						{Ref, {ok, Log}} ->
+							syslog(Log, info, io_lib:format("~p: erlsyslog: started", [self()])),
+							{ok, Log};
+						{Ref, Result} ->
+							{stop, Result}
+					end;
+				BinError -> {stop, binary_to_term(BinError)}
+			catch
+				_:Reason -> {stop,  Reason}
+			end;
+		Error ->
+			Error
+	end.
 
-handle_call(_Request, State) ->
-	{ok, ok, State}.
+handle_call(Call, State) ->
+	error_logger:error_msg("erlsyslog: strange call [~p]", [Call]),
+	{remove_handler, {error, {unknown_call, Call}}}.
 
 handle_info(Info, Connection) ->
-	syslog(Connection, erlsyslog, ?LOG_INFO, ?FAC_USER, io_lib:format ("Info [~p]", [Info])),
-	{ok, Connection}.
+	error_logger:error_msg("erlsyslog: strange info [~p]", [Info]),
+	remove_handler.
 
-handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_record(Report, report), is_atom(StdType) ->
-	RL = case {ReportLevel,StdType} of
-		{error_report, _} -> ?LOG_ERROR;
-		{warning_report, _} -> ?LOG_WARNING;
-		{info_report, _} -> ?LOG_INFO
+handle_event({EventLevel, _, {FromPid, Fmt, Data}}, Connection) when is_list(Fmt) ->
+	EL = case EventLevel of
+		error -> err;
+		warning_msg -> warning;
+		info_msg -> info
 	end,
-	syslog(Connection, Report#report.name, RL, Report#report.facility, io_lib:format ("~p: " ++ Report#report.format, [FromPid|Report#report.data])),
+	syslog(Connection, EL, io_lib:format ("~p: " ++ Fmt, [FromPid | Data])),
+	{ok, Connection};
+
+handle_event({ReportLevel, _, {FromPid, _, Report}}, Connection) when is_record(Report, report) ->
+	RL = case ReportLevel of
+		error_report -> err;
+		warning_report -> warning;
+		info_report -> info
+	end,
+	syslog(Connection, RL, io_lib:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
 	{ok, Connection};
 
 handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_atom(StdType) ->
-	RL = case {ReportLevel,StdType} of
-		{error_report, _} -> ?LOG_ERROR;
-		{warning_report, _} -> ?LOG_WARNING;
-		{info_report, _} -> ?LOG_INFO
+	RL = case ReportLevel of
+		error_report -> err;
+		warning_report -> warning;
+		info_report -> info
 	end,
-	syslog(Connection, FromPid, RL, ?FAC_USER, io_lib:format ("~p", [Report])),
-	{ok, Connection};
-
-handle_event({EventLevel, _, {FromPid, Fmt, Data}}, Connection) ->
-	EL = case EventLevel of
-		error -> ?LOG_ERROR;
-		warning_msg -> ?LOG_WARNING;
-		info_msg -> ?LOG_INFO
-	end,
-	syslog(Connection, FromPid, EL, ?FAC_USER, io_lib:format (Fmt, Data)),
+	syslog(Connection, RL, io_lib:format ("~p: ~p", [FromPid, Report])),
 	{ok, Connection};
 
 handle_event(Event, Connection) ->
-	syslog(Connection, erlsyslog, ?LOG_WARNING, ?FAC_USER, io_lib:format ("Unknown event [~p]", [Event])),
-	{ok, Connection}.
+	error_logger:error_msg("erlsyslog: strange event [~p]", [Event]),
+	remove_handler.
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
-terminate(Reason, {Fd, Host, Port}) ->
-	syslog({Fd, Host, Port}, erlsyslog, ?LOG_CRITICAL, ?FAC_USER, io_lib:format ("terminated due to reason [~w]", [Reason])),
-	gen_udp:close(Fd).
+terminate(Reason, Connection) ->
+	{memory, Bytes} = erlang:process_info(self(), memory),
+	syslog(Connection, warning, io_lib:format("erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes])),
+	try erlang:port_call(Connection, ?SYSLOGDRV_CLOSE, <<>>) of
+		Result ->
+			Result
+	after
+		erlang:port_close(Connection)
+	end.
 
-syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_atom(Who) ->
-	W = list_to_binary(atom_to_list(Who)),
-	M = list_to_binary(Message),
-	P = list_to_binary(integer_to_list(Facility bor Level)),
-	gen_udp:send(Fd, Host, Port, <<"<", P/binary, "> ", W/binary, ": ", M/binary, "\n">>);
+syslog(Connection, Priority, Msg) ->
+	NumPri = priorities(Priority),
+	erlang:port_command(Connection, [<<NumPri:32/big>>, Msg, <<0:8>>]).
 
-syslog({Fd, Host, Port}, Who, Facility, Level, Message) when is_pid(Who) ->
-	W = list_to_binary(pid_to_list(Who)),
-	M = list_to_binary(Message),
-	P = list_to_binary(integer_to_list(Facility bor Level)),
-	gen_udp:send(Fd, Host, Port, <<"<", P/binary, "> ", W/binary, ": ", M/binary, "\n">>).
+priorities(emerg)   -> 0;
+priorities(alert)   -> 1;
+priorities(crit)    -> 2;
+priorities(err)     -> 3;
+priorities(warning) -> 4;
+priorities(notice)  -> 5;
+priorities(info)    -> 6;
+priorities(debug)   -> 7;
+priorities(N) when is_integer(N) -> N;
+priorities(_) -> erlang:error(badarg).
