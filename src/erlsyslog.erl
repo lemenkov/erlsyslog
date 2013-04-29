@@ -136,6 +136,10 @@ terminate(Reason, Connection) ->
 		erlang:port_close(Connection)
 	end.
 
+%%%%%%%%%%%%%%%%%%%%%%%%
+%% Internal functions %%
+%%%%%%%%%%%%%%%%%%%%%%%%
+
 syslog(Connection, Priority, Msg) ->
 	NumPri = priorities(Priority),
 	erlang:port_command(Connection, [<<NumPri:32/big>>, Msg, <<0:8>>]).
