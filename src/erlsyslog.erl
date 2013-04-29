@@ -66,7 +66,7 @@ init (_) ->
 		ok ->
 			Port = erlang:open_port({spawn, ?DRV_NAME}, [binary]),
 			Ref = make_ref(),
-			Args = term_to_binary({"erlsyslog", 1, 8, term_to_binary(Ref)}),
+			Args = term_to_binary({"erlsyslog", logopt([pid]), facility(user), term_to_binary(Ref)}),
 			try erlang:port_control(Port, ?SYSLOGDRV_OPEN, Args) of
 				<<>> ->
 					receive
@@ -139,6 +139,47 @@ terminate(Reason, Connection) ->
 syslog(Connection, Priority, Msg) ->
 	NumPri = priorities(Priority),
 	erlang:port_command(Connection, [<<NumPri:32/big>>, Msg, <<0:8>>]).
+
+facility(kern)      -> 0;
+facility(user)      -> 8;
+facility(mail)      -> 16;
+facility(daemon)    -> 24;
+facility(auth)      -> 32;
+facility(syslog)    -> 40;
+facility(lpr)       -> 48;
+facility(news)      -> 56;
+facility(uucp)      -> 64;
+facility(cron)      -> 72;
+facility(authpriv)  -> 80;
+facility(ftp)       -> 88;
+facility(netinfo)   -> 96;
+facility(remoteauth)-> 104;
+facility(install)   -> 112;
+facility(ras)       -> 120;
+facility(local0)    -> 16 * 8;
+facility(local1)    -> 17 * 8;
+facility(local2)    -> 18 * 8;
+facility(local3)    -> 19 * 8;
+facility(local4)    -> 20 * 8;
+facility(local5)    -> 21 * 8;
+facility(local6)    -> 22 * 8;
+facility(local7)    -> 23 * 8;
+facility(N) when is_integer(N) -> N;
+facility(_) -> erlang:error(badarg).
+
+openlog_opt(pid)    -> 1;
+openlog_opt(cons)   -> 2;
+openlog_opt(odelay) -> 4;
+openlog_opt(ndelay) -> 8;
+openlog_opt(perror) -> 20;
+openlog_opt(N) when is_integer(N) -> N;
+openlog_opt(_) -> erlang:error(badarg).
+
+logopt([Queue]) -> openlog_opt(Queue);
+logopt([Tail|Queue]) ->
+    openlog_opt(Tail) bor logopt(Queue);
+logopt([]) -> 0;
+logopt(N) -> openlog_opt(N).
 
 priorities(emerg)   -> 0;
 priorities(alert)   -> 1;
