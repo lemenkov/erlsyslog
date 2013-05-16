@@ -239,7 +239,7 @@ static ErlDrvEntry syslogdrv_driver_entry = {
     ERL_DRV_EXTENDED_MARKER,
     ERL_DRV_EXTENDED_MAJOR_VERSION,
     ERL_DRV_EXTENDED_MINOR_VERSION,
-    0,
+    ERL_DRV_FLAG_USE_PORT_LOCKING,
     NULL,
     NULL,
     NULL,
