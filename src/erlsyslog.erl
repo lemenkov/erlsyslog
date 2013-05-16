@@ -84,11 +84,11 @@ init (_) ->
 			Error
 	end.
 
-handle_call(Call, State) ->
+handle_call(Call, _) ->
 	error_logger:error_msg("erlsyslog: strange call [~p]", [Call]),
 	{remove_handler, {error, {unknown_call, Call}}}.
 
-handle_info(Info, Connection) ->
+handle_info(Info, _) ->
 	error_logger:error_msg("erlsyslog: strange info [~p]", [Info]),
 	remove_handler.
 
@@ -104,7 +104,7 @@ handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_a
 	syslog(Connection, ReportLevel, io_lib:format ("~p: ~p", [FromPid, Report])),
 	{ok, Connection};
 
-handle_event(Event, Connection) ->
+handle_event(Event, _) ->
 	error_logger:error_msg("erlsyslog: strange event [~p]", [Event]),
 	remove_handler.
 
