@@ -12,17 +12,10 @@ EBIN_DIR := ebin
 ERL_SOURCES  := $(wildcard src/*.erl)
 ERL_OBJECTS  := $(ERL_SOURCES:src/%.erl=$(EBIN_DIR)/%.beam)
 
-
-
-
-all: deps compile
-
-deps:
-	$(REBAR) get-deps
+all: compile
 
 compile:
 	@VSN=$(VSN) BUILD_DATE=$(BUILD_DATE) $(REBAR) compile $(REBAR_FLAGS)
-
 
 clean:
 	@$(REBAR) clean $(REBAR_FLAGS)
