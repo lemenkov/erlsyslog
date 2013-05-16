@@ -70,9 +70,9 @@ init (_) ->
 			try erlang:port_control(Port, ?SYSLOGDRV_OPEN, Args) of
 				<<>> ->
 					receive
-						{Ref, {ok, Log}} ->
-							syslog(Log, info, io_lib:format("~p: erlsyslog: started", [self()])),
-							{ok, Log};
+						{Ref, {ok, Connection}} ->
+							syslog(Connection, info, io_lib:format("~p: erlsyslog: started", [self()])),
+							{ok, Connection};
 						{Ref, Result} ->
 							{stop, Result}
 					end;
