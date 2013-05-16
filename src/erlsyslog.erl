@@ -93,30 +93,15 @@ handle_info(Info, Connection) ->
 	remove_handler.
 
 handle_event({EventLevel, _, {FromPid, Fmt, Data}}, Connection) when is_list(Fmt) ->
-	EL = case EventLevel of
-		error -> err;
-		warning_msg -> warning;
-		info_msg -> info
-	end,
-	syslog(Connection, EL, io_lib:format ("~p: " ++ Fmt, [FromPid | Data])),
+	syslog(Connection, EventLevel, io_lib:format ("~p: " ++ Fmt, [FromPid | Data])),
 	{ok, Connection};
 
 handle_event({ReportLevel, _, {FromPid, _, Report}}, Connection) when is_record(Report, report) ->
-	RL = case ReportLevel of
-		error_report -> err;
-		warning_report -> warning;
-		info_report -> info
-	end,
-	syslog(Connection, RL, io_lib:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
+	syslog(Connection, ReportLevel, io_lib:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
 	{ok, Connection};
 
 handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_atom(StdType) ->
-	RL = case ReportLevel of
-		error_report -> err;
-		warning_report -> warning;
-		info_report -> info
-	end,
-	syslog(Connection, RL, io_lib:format ("~p: ~p", [FromPid, Report])),
+	syslog(Connection, ReportLevel, io_lib:format ("~p: ~p", [FromPid, Report])),
 	{ok, Connection};
 
 handle_event(Event, Connection) ->
@@ -184,6 +169,15 @@ logopt([Tail|Queue]) ->
     openlog_opt(Tail) bor logopt(Queue);
 logopt([]) -> 0;
 logopt(N) -> openlog_opt(N).
+
+% error/info/debug_msg
+priorities(error) -> 3;
+priorities(warning_msg) -> 4;
+priorities(info_msg) -> 6;
+% error/info/debug_report
+priorities(error_report) -> 3;
+priorities(warning_report) -> 4;
+priorities(info_report) -> 6;
 
 priorities(emerg)   -> 0;
 priorities(alert)   -> 1;
