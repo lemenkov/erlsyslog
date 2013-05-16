@@ -77,7 +77,7 @@ init (_) ->
 				<<>> ->
 					receive
 						{Ref, {ok, Connection}} ->
-							syslog(Connection, info, VerbosityLevel, io_lib:format("~p: erlsyslog: started (VerbosityLevel = ~b)", [self(), VerbosityLevel])),
+							syslog(Connection, warning, VerbosityLevel, io_lib:format("~p: erlsyslog: started (VerbosityLevel = ~b)", [self(), VerbosityLevel])),
 							{ok, {Connection, VerbosityLevel}};
 						{Ref, Result} ->
 							{stop, Result}
@@ -95,7 +95,7 @@ handle_call(Call, _) ->
 	{remove_handler, {error, {unknown_call, Call}}}.
 
 handle_info({set_verbosity_level, VerbosityLevel}, {Connection, OldVerbosityLevel}) ->
-	error_logger:info_msg("erlsyslog: verbosity changed from ~p to ~p", [OldVerbosityLevel, VerbosityLevel]),
+	error_logger:warning_msg("erlsyslog: verbosity changed from ~p to ~p", [OldVerbosityLevel, VerbosityLevel]),
 	{ok, {Connection, priorities(VerbosityLevel)}};
 
 handle_info(Info, _) ->
