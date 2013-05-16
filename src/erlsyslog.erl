@@ -46,6 +46,8 @@
 init (_) ->
 	process_flag(trap_exit, true),
 	erl_ddll:start(),
+	% Required to read 'erlsyslog' entry from config-file
+	application:load(erlsyslog),
 	VerbosityLevel = case application:get_env(erlsyslog, verbosity_level) of
 		undefined -> priorities(debug);
 		{ok, L} -> priorities(L)
