@@ -92,6 +92,10 @@ handle_call(Call, _) ->
 	error_logger:error_msg("erlsyslog: strange call [~p]", [Call]),
 	{remove_handler, {error, {unknown_call, Call}}}.
 
+handle_info({set_verbosity_level, VerbosityLevel}, {Connection, OldVerbosityLevel}) ->
+	error_logger:info_msg("erlsyslog: verbosity changed from ~p to ~p", [OldVerbosityLevel, VerbosityLevel]),
+	{ok, {Connection, priorities(VerbosityLevel)}};
+
 handle_info(Info, _) ->
 	error_logger:error_msg("erlsyslog: strange info [~p]", [Info]),
 	remove_handler.
