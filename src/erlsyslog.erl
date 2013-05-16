@@ -46,6 +46,10 @@
 init (_) ->
 	process_flag(trap_exit, true),
 	erl_ddll:start(),
+	VerbosityLevel = case application:get_env(erlsyslog, verbosity_level) of
+		undefined -> priorities(debug);
+		{ok, L} -> priorities(L)
+	end,
 	PrivDir = case code:priv_dir(?MODULE) of
 		{error, bad_name} ->
 			EbinDir = filename:dirname(code:which(?MODULE)),
@@ -71,8 +75,8 @@ init (_) ->
 				<<>> ->
 					receive
 						{Ref, {ok, Connection}} ->
-							syslog(Connection, info, io_lib:format("~p: erlsyslog: started", [self()])),
-							{ok, Connection};
+							syslog(Connection, info, VerbosityLevel, io_lib:format("~p: erlsyslog: started", [self()])),
+							{ok, {Connection, VerbosityLevel}};
 						{Ref, Result} ->
 							{stop, Result}
 					end;
@@ -92,17 +96,17 @@ handle_info(Info, _) ->
 	error_logger:error_msg("erlsyslog: strange info [~p]", [Info]),
 	remove_handler.
 
-handle_event({EventLevel, _, {FromPid, Fmt, Data}}, Connection) when is_list(Fmt) ->
-	syslog(Connection, EventLevel, io_lib:format ("~p: " ++ Fmt, [FromPid | Data])),
-	{ok, Connection};
+handle_event({EventLevel, _, {FromPid, Fmt, Data}}, {Connection, VerbosityLevel}) when is_list(Fmt) ->
+	syslog(Connection, EventLevel, VerbosityLevel, io_lib:format ("~p: " ++ Fmt, [FromPid | Data])),
+	{ok, {Connection, VerbosityLevel}};
 
-handle_event({ReportLevel, _, {FromPid, _, Report}}, Connection) when is_record(Report, report) ->
-	syslog(Connection, ReportLevel, io_lib:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
-	{ok, Connection};
+handle_event({ReportLevel, _, {FromPid, _, Report}}, {Connection, VerbosityLevel}) when is_record(Report, report) ->
+	syslog(Connection, ReportLevel, VerbosityLevel, io_lib:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
+	{ok, {Connection, VerbosityLevel}};
 
-handle_event({ReportLevel, _, {FromPid, StdType, Report}}, Connection) when is_atom(StdType) ->
-	syslog(Connection, ReportLevel, io_lib:format ("~p: ~p", [FromPid, Report])),
-	{ok, Connection};
+handle_event({ReportLevel, _, {FromPid, StdType, Report}}, {Connection, VerbosityLevel}) when is_atom(StdType) ->
+	syslog(Connection, ReportLevel, VerbosityLevel, io_lib:format ("~p: ~p", [FromPid, Report])),
+	{ok, {Connection, VerbosityLevel}};
 
 handle_event(Event, _) ->
 	error_logger:error_msg("erlsyslog: strange event [~p]", [Event]),
@@ -111,9 +115,9 @@ handle_event(Event, _) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
-terminate(Reason, Connection) ->
+terminate(Reason, {Connection, VerbosityLevel}) ->
 	{memory, Bytes} = erlang:process_info(self(), memory),
-	syslog(Connection, warning, io_lib:format("erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes])),
+	syslog(Connection, warning, VerbosityLevel, io_lib:format("erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes])),
 	try erlang:port_call(Connection, ?SYSLOGDRV_CLOSE, <<>>) of
 		Result ->
 			Result
@@ -125,9 +129,9 @@ terminate(Reason, Connection) ->
 %% Internal functions %%
 %%%%%%%%%%%%%%%%%%%%%%%%
 
-syslog(Connection, Priority, Msg) ->
+syslog(Connection, Priority, VerbosityLevel, Msg) ->
 	NumPri = priorities(Priority),
-	erlang:port_command(Connection, [<<NumPri:32/big>>, Msg, <<0:8>>]).
+	NumPri =< VerbosityLevel andalso erlang:port_command(Connection, [<<NumPri:32/big>>, Msg, <<0:8>>]).
 
 facility(kern)      -> 0;
 facility(user)      -> 8;
