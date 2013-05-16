@@ -75,7 +75,7 @@ init (_) ->
 				<<>> ->
 					receive
 						{Ref, {ok, Connection}} ->
-							syslog(Connection, info, VerbosityLevel, io_lib:format("~p: erlsyslog: started", [self()])),
+							syslog(Connection, info, VerbosityLevel, io_lib:format("~p: erlsyslog: started (VerbosityLevel = ~b)", [self(), VerbosityLevel])),
 							{ok, {Connection, VerbosityLevel}};
 						{Ref, Result} ->
 							{stop, Result}
