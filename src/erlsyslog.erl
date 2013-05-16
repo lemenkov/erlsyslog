@@ -77,7 +77,7 @@ init (_) ->
 				<<>> ->
 					receive
 						{Ref, {ok, Connection}} ->
-							syslog(Connection, warning, VerbosityLevel, io_lib:format("~p: erlsyslog: started (VerbosityLevel = ~b)", [self(), VerbosityLevel])),
+							syslog(Connection, warning, VerbosityLevel, "~p: erlsyslog: started (VerbosityLevel = ~b)", [self(), VerbosityLevel]),
 							{ok, {Connection, VerbosityLevel}};
 						{Ref, Result} ->
 							{stop, Result}
@@ -103,15 +103,15 @@ handle_info(Info, _) ->
 	remove_handler.
 
 handle_event({EventLevel, _, {FromPid, Fmt, Data}}, {Connection, VerbosityLevel}) when is_list(Fmt) ->
-	syslog(Connection, EventLevel, VerbosityLevel, io_lib:format ("~p: " ++ Fmt, [FromPid | Data])),
+	syslog(Connection, EventLevel, VerbosityLevel, "~p: " ++ Fmt, [FromPid | Data]),
 	{ok, {Connection, VerbosityLevel}};
 
 handle_event({ReportLevel, _, {FromPid, _, Report}}, {Connection, VerbosityLevel}) when is_record(Report, report) ->
-	syslog(Connection, ReportLevel, VerbosityLevel, io_lib:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
+	syslog(Connection, ReportLevel, VerbosityLevel, "~p: " ++ Report#report.format, [FromPid | Report#report.data]),
 	{ok, {Connection, VerbosityLevel}};
 
 handle_event({ReportLevel, _, {FromPid, StdType, Report}}, {Connection, VerbosityLevel}) when is_atom(StdType) ->
-	syslog(Connection, ReportLevel, VerbosityLevel, io_lib:format ("~p: ~p", [FromPid, Report])),
+	syslog(Connection, ReportLevel, VerbosityLevel, "~p: ~p", [FromPid, Report]),
 	{ok, {Connection, VerbosityLevel}};
 
 handle_event(Event, _) ->
@@ -123,7 +123,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 terminate(Reason, {Connection, VerbosityLevel}) ->
 	{memory, Bytes} = erlang:process_info(self(), memory),
-	syslog(Connection, warning, VerbosityLevel, io_lib:format("erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes])),
+	syslog(Connection, warning, VerbosityLevel, "erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes]),
 	try erlang:port_call(Connection, ?SYSLOGDRV_CLOSE, <<>>) of
 		Result ->
 			Result
@@ -135,9 +135,8 @@ terminate(Reason, {Connection, VerbosityLevel}) ->
 %% Internal functions %%
 %%%%%%%%%%%%%%%%%%%%%%%%
 
-syslog(Connection, Priority, VerbosityLevel, Msg) ->
-	NumPri = priorities(Priority),
-	NumPri =< VerbosityLevel andalso erlang:port_command(Connection, [<<NumPri:32/big>>, Msg, <<0:8>>]).
+syslog(Connection, Priority, VerbosityLevel, Fmt, Args) ->
+	NumPri =< VerbosityLevel andalso erlang:port_command(Connection, [<<NumPri:32/big>>, io_lib:format(Fmt, Args), <<0:8>>]).
 
 facility(kern)      -> 0;
 facility(user)      -> 8;
