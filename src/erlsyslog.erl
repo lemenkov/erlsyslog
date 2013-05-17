@@ -136,7 +136,8 @@ terminate(Reason, {Connection, VerbosityLevel}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%
 
 syslog(Connection, Priority, VerbosityLevel, FromPid, Fmt, Args) ->
-	NumPri =< VerbosityLevel andalso  erlang:port_command(Connection, [<<NumPri:32/big>>, io_lib:format("~p: ", [FromPid]), io_lib:format(Fmt, Args), <<0:8>>]).
+	NumPri = priorities(Priority),
+	NumPri =< VerbosityLevel andalso erlang:port_command(Connection, [<<NumPri:32/big>>, io_lib:format("~p: ", [FromPid]), io_lib:format(Fmt, Args), <<0:8>>]).
 
 facility(kern)      -> 0;
 facility(user)      -> 8;
