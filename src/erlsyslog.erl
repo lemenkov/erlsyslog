@@ -101,15 +101,15 @@ handle_info(Info, _) ->
 	remove_handler.
 
 handle_event({EventLevel, _, {FromPid, Fmt, Data}}, {Connection, VerbosityLevel}) when is_list(Fmt) ->
-	syslog(Connection, EventLevel, VerbosityLevel, io_lib:format ("~p: " ++ Fmt, [FromPid | Data])),
+	syslog(Connection, EventLevel, VerbosityLevel, io_libc:format ("~p: " ++ Fmt, [FromPid | Data])),
 	{ok, {Connection, VerbosityLevel}};
 
 handle_event({ReportLevel, _, {FromPid, _, Report}}, {Connection, VerbosityLevel}) when is_record(Report, report) ->
-	syslog(Connection, ReportLevel, VerbosityLevel, io_lib:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
+	syslog(Connection, ReportLevel, VerbosityLevel, io_libc:format ("~p: " ++ Report#report.format, [FromPid | Report#report.data])),
 	{ok, {Connection, VerbosityLevel}};
 
 handle_event({ReportLevel, _, {FromPid, StdType, Report}}, {Connection, VerbosityLevel}) when is_atom(StdType) ->
-	syslog(Connection, ReportLevel, VerbosityLevel, io_lib:format ("~p: ~p", [FromPid, Report])),
+	syslog(Connection, ReportLevel, VerbosityLevel, io_libc:format ("~p: ~p", [FromPid, Report])),
 	{ok, {Connection, VerbosityLevel}};
 
 handle_event(Event, _) ->
