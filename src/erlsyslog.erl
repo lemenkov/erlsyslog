@@ -35,60 +35,24 @@
 -export([code_change/3]).
 -export([terminate/2]).
 
--define(DRV_NAME, "erlsyslog_drv").
-
-%% these constants must match those in syslog_drv.c
--define(SYSLOGDRV_OPEN,  1).
--define(SYSLOGDRV_CLOSE, 2).
-
 -include ("../include/erlsyslog.hrl").
 
 init (_) ->
 	process_flag(trap_exit, true),
-	erl_ddll:start(),
 	% Required to read 'erlsyslog' entry from config-file
 	application:load(erlsyslog),
 	VerbosityLevel = case application:get_env(erlsyslog, verbosity_level) of
 		undefined -> priorities(debug);
 		{ok, L} -> priorities(L)
 	end,
-	PrivDir = case code:priv_dir(?MODULE) of
-		{error, bad_name} ->
-			EbinDir = filename:dirname(code:which(?MODULE)),
-			AppPath = filename:dirname(EbinDir),
-			filename:join(AppPath, "priv");
-		Path ->
-			Path
-	end,
-	LoadResult = case erl_ddll:load_driver(PrivDir, ?DRV_NAME) of
-		ok -> ok;
-		{error, already_loaded} -> ok;
-		{error, LoadError} ->
-			LoadErrorStr = erl_ddll:format_error(LoadError),
-			ErrStr = lists:flatten(io_lib:format("could not load driver ~s: ~p", [?DRV_NAME, LoadErrorStr])),
-		{stop, ErrStr}
-	end,
-	case LoadResult of
-		ok ->
-			Port = erlang:open_port({spawn, ?DRV_NAME}, [binary]),
-			Ref = make_ref(),
-			Args = term_to_binary({"erlsyslog", logopt([pid]), facility(user), term_to_binary(Ref)}),
-			try erlang:port_control(Port, ?SYSLOGDRV_OPEN, Args) of
-				<<>> ->
-					receive
-						{Ref, {ok, Connection}} ->
-							syslog(Connection, warning, VerbosityLevel, self(), "erlsyslog: started (VerbosityLevel = ~b)", [VerbosityLevel]),
-							{ok, {Connection, VerbosityLevel}};
-						{Ref, Result} ->
-							{stop, Result}
-					end;
-				BinError -> {stop, binary_to_term(BinError)}
-			catch
-				_:Reason -> {stop,  Reason}
-			end;
-		Error ->
-			Error
+	case erlsyslog_drv:init({"posix call", logopt([pid]), facility(user)}) of
+		{ok, Connection} ->
+			syslog(Connection, warning, VerbosityLevel, self(), "erlsyslog: started (VerbosityLevel = ~b)", [VerbosityLevel]),
+			{ok, {Connection, VerbosityLevel}};
+		{stop, Error} ->
+			{stop, Error}
 	end.
+
 
 handle_call(Call, _) ->
 	error_logger:error_msg("erlsyslog: strange call [~p]", [Call]),
@@ -124,12 +88,7 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(Reason, {Connection, VerbosityLevel}) ->
 	{memory, Bytes} = erlang:process_info(self(), memory),
 	syslog(Connection, warning, VerbosityLevel, self(), "erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes]),
-	try erlang:port_call(Connection, ?SYSLOGDRV_CLOSE, <<>>) of
-		Result ->
-			Result
-	after
-		erlang:port_close(Connection)
-	end.
+	erlsyslog_drv:terminate(Connection).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %% Internal functions %%
@@ -137,7 +96,7 @@ terminate(Reason, {Connection, VerbosityLevel}) ->
 
 syslog(Connection, Priority, VerbosityLevel, FromPid, Fmt, Args) ->
 	NumPri = priorities(Priority),
-	NumPri =< VerbosityLevel andalso erlang:port_command(Connection, [<<NumPri:32/big>>, io_lib:format("~p: ", [FromPid]), io_lib:format(Fmt, Args), <<0:8>>]).
+	NumPri =< VerbosityLevel andalso erlsyslog_drv:syslog(Connection, NumPri, FromPid, Fmt, Args).
 
 facility(kern)      -> 0;
 facility(user)      -> 8;
