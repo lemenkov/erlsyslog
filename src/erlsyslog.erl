@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% Copyright (c) 2008-2010 Peter Lemenkov <lemenkov@gmail.com>
+%%% Copyright (c) 2008-2016 Peter Lemenkov <lemenkov@gmail.com>
 %%%
 %%% Permission is hereby granted, free of charge, to any person
 %%% obtaining a copy of this software and associated documentation
@@ -37,46 +37,50 @@
 
 -include ("../include/erlsyslog.hrl").
 
+-record(state, {backend, connection, verbosity}).
+
 init (_) ->
 	process_flag(trap_exit, true),
+
 	% Required to read 'erlsyslog' entry from config-file
 	application:load(erlsyslog),
-	VerbosityLevel = case application:get_env(erlsyslog, verbosity_level) of
-		undefined -> priorities(debug);
-		{ok, L} -> priorities(L)
-	end,
-	case erlsyslog_drv:init({"posix call", logopt([pid]), facility(user)}) of
+
+	Backend = application:get_env(erlsyslog, backend, erlsyslog_unix),
+	VerbosityLevel = priorities(application:get_env(erlsyslog, verbosity_level, debug)),
+	Path = application:get_env(erlsyslog, path, "/dev/log"),
+
+	case Backend:init({Path, logopt([pid]), facility(user)}) of
 		{ok, Connection} ->
-			syslog(Connection, warning, VerbosityLevel, self(), "erlsyslog: started (VerbosityLevel = ~b)", [VerbosityLevel]),
-			{ok, {Connection, VerbosityLevel}};
+			syslog(Backend, Connection, warning, VerbosityLevel, self(), "erlsyslog: started (Backend = ~p, VerbosityLevel = ~b)", [Backend, VerbosityLevel]),
+			{ok, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel}};
 		{stop, Error} ->
 			{stop, Error}
 	end.
 
 
-handle_call(Call, _) ->
+handle_call(Call, #state{}) ->
 	error_logger:error_msg("erlsyslog: strange call [~p]", [Call]),
 	{remove_handler, {error, {unknown_call, Call}}}.
 
-handle_info({set_verbosity_level, VerbosityLevel}, {Connection, OldVerbosityLevel}) ->
+handle_info({set_verbosity_level, VerbosityLevel}, #state{verbosity = OldVerbosityLevel} = State) ->
 	error_logger:warning_msg("erlsyslog: verbosity changed from ~p to ~p", [OldVerbosityLevel, VerbosityLevel]),
-	{ok, {Connection, priorities(VerbosityLevel)}};
+	{ok, State#state{verbosity = priorities(VerbosityLevel)}};
 
-handle_info(Info, _) ->
+handle_info(Info, #state{}) ->
 	error_logger:error_msg("erlsyslog: strange info [~p]", [Info]),
 	remove_handler.
 
-handle_event({EventLevel, _, {FromPid, Fmt, Data}}, {Connection, VerbosityLevel}) when is_list(Fmt) ->
-	syslog(Connection, EventLevel, VerbosityLevel, FromPid, Fmt, Data),
-	{ok, {Connection, VerbosityLevel}};
+handle_event({EventLevel, _, {FromPid, Fmt, Data}}, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = State) when is_list(Fmt) ->
+	syslog(Backend, Connection, EventLevel, VerbosityLevel, FromPid, Fmt, Data),
+	{ok, State};
 
-handle_event({ReportLevel, _, {FromPid, _, Report}}, {Connection, VerbosityLevel}) when is_record(Report, report) ->
-	syslog(Connection, ReportLevel, VerbosityLevel, FromPid, Report#report.format, Report#report.data),
-	{ok, {Connection, VerbosityLevel}};
+handle_event({ReportLevel, _, {FromPid, _, Report}}, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = State) when is_record(Report, report) ->
+	syslog(Backend, Connection, ReportLevel, VerbosityLevel, FromPid, Report#report.format, Report#report.data),
+	{ok, State};
 
-handle_event({ReportLevel, _, {FromPid, StdType, Report}}, {Connection, VerbosityLevel}) when is_atom(StdType) ->
-	syslog(Connection, debug, VerbosityLevel, FromPid, "~p", [Report]),
-	{ok, {Connection, VerbosityLevel}};
+handle_event({ReportLevel, _, {FromPid, StdType, Report}}, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = State) when is_atom(StdType) ->
+	syslog(Backend, Connection, debug, VerbosityLevel, FromPid, "~p", [Report]),
+	{ok, State};
 
 handle_event(Event, _) ->
 	error_logger:error_msg("erlsyslog: strange event [~p]", [Event]),
@@ -85,18 +89,18 @@ handle_event(Event, _) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
-terminate(Reason, {Connection, VerbosityLevel}) ->
+terminate(Reason, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = State) ->
 	{memory, Bytes} = erlang:process_info(self(), memory),
-	syslog(Connection, warning, VerbosityLevel, self(), "erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes]),
-	erlsyslog_drv:terminate(Connection).
+	syslog(Backend, Connection, warning, VerbosityLevel, self(), "erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes]),
+	Backend:terminate(Connection).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %% Internal functions %%
 %%%%%%%%%%%%%%%%%%%%%%%%
 
-syslog(Connection, Priority, VerbosityLevel, FromPid, Fmt, Args) ->
+syslog(Backend, Connection, Priority, VerbosityLevel, FromPid, Fmt, Args) ->
 	NumPri = priorities(Priority),
-	NumPri =< VerbosityLevel andalso erlsyslog_drv:syslog(Connection, NumPri, FromPid, Fmt, Args).
+	NumPri =< VerbosityLevel andalso Backend:syslog(Connection, NumPri, FromPid, Fmt, Args).
 
 facility(kern)      -> 0;
 facility(user)      -> 8;
