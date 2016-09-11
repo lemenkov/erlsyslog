@@ -35,7 +35,7 @@ init({Path, _Option, Facility}) ->
 	{ok, {UnixSock, Path, Facility}}.
 
 syslog({UnixSock, Path, Facility} = Connection, NumPri, FromPid, Fmt, Args) ->
-	gen_udp:send(UnixSock, {local, Path}, 0, [<<"<">>, integer_to_list (Facility bor NumPri), <<">">>, io_lib:format("~p: ", [FromPid]), io_lib:format(Fmt, Args), <<"\n">>]),
+	gen_udp:send(UnixSock, {local, Path}, 0, [<<"<">>, integer_to_list (Facility bor NumPri), <<">">>, pid_to_list(FromPid), <<": ">>, io_lib:format(Fmt, Args), <<"\n">>]),
 	ok.
 
 terminate({UnixSock, _Path, _Facility} = Connection) ->
