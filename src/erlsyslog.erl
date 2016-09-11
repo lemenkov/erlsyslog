@@ -66,6 +66,9 @@ handle_info({set_verbosity_level, VerbosityLevel}, #state{verbosity = OldVerbosi
 	error_logger:warning_msg("erlsyslog: verbosity changed from ~p to ~p", [OldVerbosityLevel, VerbosityLevel]),
 	{ok, State#state{verbosity = priorities(VerbosityLevel)}};
 
+handle_info({'EXIT', _Pid, killed}, #state{}) ->
+	remove_handler;
+
 handle_info(Info, #state{}) ->
 	error_logger:error_msg("erlsyslog: strange info [~p]", [Info]),
 	remove_handler.
