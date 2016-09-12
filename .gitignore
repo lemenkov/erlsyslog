@@ -1,0 +1,14 @@
+*.beam
+*.d
+*.diff
+*.o
+*.orig
+*.patch
+*.rej
+*.so
+*~
+.eunit/
+.rebar/
+compile_commands.json
+ebin/
+erl_crash.dump
