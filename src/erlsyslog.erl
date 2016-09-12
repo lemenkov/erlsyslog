@@ -81,7 +81,7 @@ handle_event({ReportLevel, _, {FromPid, _, Report}}, #state{backend = Backend, c
 	syslog(Backend, Connection, ReportLevel, VerbosityLevel, FromPid, Report#report.format, Report#report.data),
 	{ok, State};
 
-handle_event({ReportLevel, _, {FromPid, StdType, Report}}, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = State) when is_atom(StdType) ->
+handle_event({_ReportLevel, _, {FromPid, StdType, Report}}, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = State) when is_atom(StdType) ->
 	syslog(Backend, Connection, debug, VerbosityLevel, FromPid, "~p", [Report]),
 	{ok, State};
 
@@ -92,7 +92,7 @@ handle_event(Event, _) ->
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
-terminate(Reason, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = State) ->
+terminate(Reason, #state{backend = Backend, connection = Connection, verbosity = VerbosityLevel} = _State) ->
 	{memory, Bytes} = erlang:process_info(self(), memory),
 	syslog(Backend, Connection, warning, VerbosityLevel, self(), "erlsyslog terminated due to reason [~p] (allocated ~b bytes)", [Reason, Bytes]),
 	Backend:terminate(Connection).
