@@ -23,20 +23,20 @@
 %%% OTHER DEALINGS IN THE SOFTWARE.
 %%%----------------------------------------------------------------------
 
--module(erlsyslog_unix).
+-module(erlsyslog_udp).
 -author('lemenkov@gmail.com').
 
 -export([init/1]).
 -export([syslog/5]).
 -export([terminate/1]).
 
-init({Path, _Option, Facility}) ->
-	{ok, UnixSock} = gen_udp:open(0, [local]),
-	{ok, {UnixSock, Path, Facility}}.
+init({{_Ip, _Port} = Address, _Option, Facility}) ->
+	{ok, UdpSock} = gen_udp:open(0),
+	{ok, {UdpSock, Address, Facility}}.
 
-syslog({UnixSock, Path, Facility} = _Connection, NumPri, FromPid, Fmt, Args) ->
-	gen_udp:send(UnixSock, {local, Path}, 0, [<<"<">>, integer_to_list (Facility bor NumPri), <<">">>, pid_to_list(FromPid), <<": ">>, io_lib:format(Fmt, Args), <<"\n">>]),
+syslog({UdpSock, {Ip, Port} = _Address, Facility} = _Connection, NumPri, FromPid, Fmt, Args) ->
+	gen_udp:send(UdpSock, Ip, Port, [<<"<">>, integer_to_list (Facility bor NumPri), <<">">>, pid_to_list(FromPid), <<": ">>, io_lib:format(Fmt, Args), <<"\n">>]),
 	ok.
 
-terminate({UnixSock, _Path, _Facility} = _Connection) ->
-	gen_udp:close(UnixSock).
+terminate({UdpSock, _Address, _Facility} = _Connection) ->
+	gen_udp:close(UdpSock).
